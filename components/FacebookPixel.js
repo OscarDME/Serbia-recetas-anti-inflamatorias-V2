@@ -32,6 +32,11 @@ export default function FacebookPixel() {
             (function() {
               if (location.pathname === "/brd") return;
               var lastPV = null;
+              // Pixels ya inicializados (sembramos el de la landing): el embed.js hace
+              // fbq('init', <mismo pixel>) al abrir el checkout -> reactiva autoConfig y
+              // dispara un PageView automático fantasma. Lo bloqueamos.
+              var seenPixels = {};
+              seenPixels['${PIXEL_ID}'] = true;
               function installPatch() {
                 if (!window.fbq || !window.fbq.callMethod) return false;
                 if (window.__pvDedupeInstalled) return true;
@@ -39,7 +44,11 @@ export default function FacebookPixel() {
                 var orig = window.fbq.callMethod;
                 window.fbq.callMethod = function() {
                   try {
-                    if (arguments[0] === 'track' && arguments[1] === 'PageView') {
+                    var a0 = arguments[0];
+                    // Dedupe de PageView por URL (cubre 'track' y 'trackSingle').
+                    var isPV = (a0 === 'track' && arguments[1] === 'PageView') ||
+                               (a0 === 'trackSingle' && arguments[2] === 'PageView');
+                    if (isPV) {
                       var currentUrl = location.origin + location.pathname + location.search;
                       if (lastPV === currentUrl) {
                         console.log("🛡️ [FB] PageView duplicado bloqueado:", currentUrl);
@@ -47,6 +56,16 @@ export default function FacebookPixel() {
                       }
                       lastPV = currentUrl;
                       console.log("✅ [FB] PageView ENVIADO a Meta:", currentUrl);
+                    }
+                    // Evita el PageView automático de re-inicializar un pixel.
+                    if (a0 === 'init') {
+                      var pid = String(arguments[1] || '');
+                      if (seenPixels[pid]) {
+                        console.log("🛡️ [FB] init duplicado de pixel ignorado:", pid);
+                        return;
+                      }
+                      seenPixels[pid] = true;
+                      try { orig.call(this, 'set', 'autoConfig', false, pid); } catch (e) {}
                     }
                   } catch (e) {}
                   return orig.apply(this, arguments);

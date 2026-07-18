@@ -2,13 +2,17 @@
 import { useState, useEffect } from "react";
 import { copy } from "@/lib/copy";
 import { ShieldCheck, Star, ShoppingCart, Eye } from "lucide-react";
+import CheckoutEmbed from "./CheckoutEmbed";
 
 const BASE_CHECKOUT_URL = "https://www.oriopay.app/p/protivupalni-recepti-v2";
+
+const CHECKOUT_SLUG = new URL(BASE_CHECKOUT_URL).pathname.split("/").filter(Boolean).pop();
 
 export default function FinalCta() {
   const [checkoutUrl, setCheckoutUrl] = useState(BASE_CHECKOUT_URL);
   const [isMounted, setIsMounted] = useState(false);
   const [timeLeft, setTimeLeft] = useState({ h: 0, m: 0, s: 0 });
+  const [showCheckout, setShowCheckout] = useState(false);
 
   const { finalCta, hero } = copy;
 
@@ -86,6 +90,17 @@ export default function FinalCta() {
     } catch (err) {
       console.error("[FinalCTA] Error en analytics:", err);
     }
+  };
+
+  // Abre el checkout embebido AQUÍ MISMO (sin redirección). Se dispara el
+  // InitiateCheckout justo al abrir (el embed crea el iframe y OrioPay lo emite).
+  const handleOpenCheckout = () => {
+    setShowCheckout(true);
+    handleBeginCheckout();
+    setTimeout(() => {
+      const el = document.getElementById("checkout-embed-anchor");
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 60);
   };
 
   return (
@@ -169,14 +184,20 @@ export default function FinalCta() {
           </p>
 
           {/* CTA Button */}
-          <a
-            href={checkoutUrl}
-            onClick={handleBeginCheckout}
+          <button
+            type="button"
+            onClick={handleOpenCheckout}
             className="inline-flex items-center justify-center gap-2 bg-[#E8734A] hover:bg-[#D9622F] text-white font-bold py-5 md:py-6 px-8 md:px-12 rounded-xl shadow-[0_8px_30px_rgba(34,197,94,0.4)] hover:shadow-[0_12px_40px_rgba(34,197,94,0.6)] text-lg md:text-xl w-full border-b-4 border-[#B94E22] transition-all duration-300 cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
           >
             <ShoppingCart className="w-6 h-6" />
             {finalCta.button}
-          </a>
+          </button>
+
+          {/* Checkout OrioPay — oculto hasta que se presiona "Comprar"; se despliega
+              aquí mismo. Full-bleed en móvil (-mx-6 md:-mx-10). Altura auto de OrioPay. */}
+          <div id="checkout-embed-anchor" className="scroll-mt-24 -mx-6 md:-mx-10">
+            <CheckoutEmbed slug={CHECKOUT_SLUG} show={showCheckout} />
+          </div>
 
           <p className="text-gray-400 text-sm mt-3">{finalCta.afterButton}</p>
 
